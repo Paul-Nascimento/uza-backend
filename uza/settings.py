@@ -96,6 +96,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "accept", "accept-encoding", "authorization", "content-type",
+    "dnt", "origin", "user-agent", "x-csrftoken", "x-requested-with",
+]
+CORS_ALLOW_METHODS = ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://uza-frontend-kuv5.vercel.app",
+    "https://uza-backend-kcw3.onrender.com",
+]
+SECURE_SSL_REDIRECT = False
+
 # ── DRF ────────────────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"]
