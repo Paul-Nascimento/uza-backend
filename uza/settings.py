@@ -31,11 +31,13 @@ INSTALLED_APPS = [
     "contaazulinfos",
     "vexpensesinfos",
     "dashboard",
+    "corsheaders"
 ]
 
 # ── Middleware ─────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
+    'django.middleware.common.CommonMiddleware',
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",   # serve estáticos em produção
     "django.contrib.sessions.middleware.SessionMiddleware",
