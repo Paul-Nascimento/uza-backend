@@ -1,112 +1,136 @@
+"""
+Django settings for uza project.
+"""
+
 from pathlib import Path
 import os
 import dj_database_url
 from dotenv import load_dotenv
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ── Segurança ──────────────────────────────────────────────────────────────────
-SECRET_KEY = os.environ["SECRET_KEY"]
-DEBUG = os.getenv("DEBUG", "False") == "True"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
+SECRET_KEY = 'django-insecure-4#2u1f)fej4)0g*hl7)#7hog1glccu(#-gn47ve3yyo-!1*5pd'
 
-# ── Integrações externas ───────────────────────────────────────────────────────
-VEXPENSES_TOKEN        = os.environ["VEXPENSES_TOKEN"]
-CONTA_AZUL_CLIENT_ID   = os.environ["CONTA_AZUL_CLIENT_ID"]
-CONTA_AZUL_CLIENT_SECRET = os.environ["CONTA_AZUL_CLIENT_SECRET"]
+DEBUG = True
+
+ALLOWED_HOSTS = ['*']
+
+# ── Credenciais externas ───────────────────────────────────────────────────────
+
+VEXPENSES_TOKEN = 'v4RNRlSmtvFV897mfOdIxLLzAkODTRlZyEiDaf2y2OQb3N59QL2O4bHOsgCC'
+
+CONTA_AZUL_CLIENT_ID = 'mqtj80lnr02olc4m9be48jo9g'
+CONTA_AZUL_CLIENT_SECRET = '1hkcaftg0fvlud38tb9biqtpful9sdbuhj4h6jttbf65efmk184g'
 
 # ── Apps ───────────────────────────────────────────────────────────────────────
+
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "rest_framework",
-    "django_filters",
-    "corsheaders",
-    "contaazulinfos",
-    "vexpensesinfos",
-    "dashboard",
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'rest_framework',
+    'django_filters',
+    'corsheaders',
+    'contaazulinfos',
+    'vexpensesinfos',
+    'dashboard',
 ]
 
 # ── Middleware ─────────────────────────────────────────────────────────────────
+
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",   # serve estáticos em produção
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'corsheaders.middleware.CorsMiddleware',          # deve ser o primeiro
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = "uza.urls"
+# ── CORS ───────────────────────────────────────────────────────────────────────
+
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',   # Vite dev server (padrão)
+    'http://localhost:3000',   # fallback React
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8000',
+]
+
+# ── URLs ───────────────────────────────────────────────────────────────────────
+
+ROOT_URLCONF = 'uza.urls'
 
 TEMPLATES = [
     {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
 ]
+
+WSGI_APPLICATION = 'uza.wsgi.application'
+
+# ── Banco de dados ─────────────────────────────────────────────────────────────
+"""
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+"""
 
 WSGI_APPLICATION = "uza.wsgi.application"
 
 # ── Banco de dados — Neon (PostgreSQL) ────────────────────────────────────────
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.environ["DATABASE_URL"],
+        #default=os.environ["DATABASE_URL"],
+        default="postgresql://neondb_owner:npg_Aut3lsbJdy0L@ep-curly-king-aqbkka6u.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require",
         conn_max_age=600,
         conn_health_checks=True,
         ssl_require=True,
     )
 }
 
-# ── CORS ───────────────────────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
-
-# ── Segurança HTTPS ────────────────────────────────────────────────────────────
-SECURE_PROXY_SSL_HEADER    = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT         = not DEBUG
-SESSION_COOKIE_SECURE       = not DEBUG
-CSRF_COOKIE_SECURE          = not DEBUG
-SECURE_HSTS_SECONDS         = 31536000 if not DEBUG else 0
-SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD         = not DEBUG
-
 # ── Validação de senha ─────────────────────────────────────────────────────────
+
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 # ── DRF ────────────────────────────────────────────────────────────────────────
+
 REST_FRAMEWORK = {
-    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"]
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend']
 }
 
 # ── Internacionalização ────────────────────────────────────────────────────────
-LANGUAGE_CODE = "pt-br"
-TIME_ZONE     = "America/Sao_Paulo"
-USE_I18N      = True
-USE_TZ        = True
+
+LANGUAGE_CODE = 'pt-br'
+
+TIME_ZONE = 'America/Sao_Paulo'
+
+USE_I18N = True
+
+USE_TZ = True
 
 # ── Arquivos estáticos ─────────────────────────────────────────────────────────
-STATIC_URL  = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+STATIC_URL = 'static/'
