@@ -30,8 +30,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "contaazulinfos",
     "vexpensesinfos",
-    "dashboard",
-    "corsheaders"
+    "dashboard"
 ]
 
 # ── Middleware ─────────────────────────────────────────────────────────────────
