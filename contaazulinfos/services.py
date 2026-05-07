@@ -276,93 +276,80 @@ def cadastrar_conta_a_receber_via_api(token: str, data_de: str, data_ate: str) -
 # ── Conta a Pagar ─────────────────────────────────────────────────────────────
 
 def cadastrar_conta_a_pagar_via_api(token: str, data_de: str, data_ate: str) -> dict:
-    """
-    Sincroniza contas a pagar do período informado.
-
-    Args:
-        data_de:  data de vencimento inicial no formato 'YYYY-MM-DD'
-        data_ate: data de vencimento final  no formato 'YYYY-MM-DD'
-    """
-    # ✅ URL corrigida: contas-a-pagar (estava apontando para contas-a-receber)
     url = "https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar"
     headers = {"Authorization": f"Bearer {token}"}
+    extra_params = {"data_vencimento_de": data_de, "data_vencimento_ate": data_ate}
 
-    extra_params = {
-        "data_vencimento_de": data_de,
-        "data_vencimento_ate": data_ate,
-    }
+    # ── 1. Carrega lookups em memória — elimina queries dentro do loop ─────────
+    pessoas_map      = {p.id_conta_azul: p for p in Pessoa.objects.all()}
+    categorias_map   = {c.id_conta_azul: c for c in Categoria.objects.all()}
+    centros_map      = {cc.id_conta_azul: cc for cc in CentroCusto.objects.all()}
+    existentes       = set(ContaAPagar.objects.values_list("id_conta_azul", flat=True))
 
-    criados = ignorados = erros = 0
+    # ── 2. Coleta todos os itens da API ────────────────────────────────────────
+    todos_itens = list(_iterar_paginas(url, headers, extra_params=extra_params))
 
-    for item in _iterar_paginas(url, headers, extra_params=extra_params):
+    # ── 3. Separa novos e existentes ───────────────────────────────────────────
+    para_criar     = []
+    ids_atualizar  = []
+    dados_atualizar = {}
+    erros = 0
+
+    for item in todos_itens:
         id_ca = item.get("id")
         if not id_ca:
-            logger.warning(f"Conta a pagar sem 'id', pulando: {item}")
             erros += 1
             continue
 
-        try:
-            if ContaAPagar.objects.filter(id_conta_azul=id_ca).exists():
-                ignorados += 1
-                continue
+        fornecedor_id  = (item.get("fornecedor") or {}).get("id")
+        cat_id         = ((item.get("categorias") or [{}])[0]).get("id")
+        cc_id          = ((item.get("centros_de_custo") or [{}])[0]).get("id")
 
-            # ── Resolve FK: Fornecedor (pode vir vazio) ───────────────────
-            fornecedor_raw = item.get("fornecedor") or {}
-            fornecedor_id = fornecedor_raw.get("id")
-            pessoa = None
-            if fornecedor_id:
-                pessoa = Pessoa.objects.filter(id_conta_azul=fornecedor_id).first()
-                if not pessoa:
-                    logger.warning(
-                        f"Fornecedor id_conta_azul={fornecedor_id} não encontrado "
-                        f"para conta a pagar {id_ca}."
-                    )
+        defaults = dict(
+            descricao        = item.get("descricao", ""),
+            total            = item.get("total", 0),
+            data_vencimento  = _parse_date(item.get("data_vencimento")),
+            data_competencia = _parse_date(item.get("data_competencia")),
+            data_criacao     = _parse_date(item.get("data_criacao")),
+            data_alteracao   = _parse_date(item.get("data_alteracao")),
+            status           = item.get("status", ""),
+            status_traduzido = item.get("status_traduzido", ""),
+            pago             = item.get("pago", 0),
+            nao_pago         = item.get("nao_pago", 0),
+            pessoa_id        = pessoas_map.get(fornecedor_id),
+            categoria_id     = categorias_map.get(cat_id),
+            centro_custo_id  = centros_map.get(cc_id),
+        )
 
-            # ── Resolve FK: Categoria (pega a primeira da lista se houver) ─
-            categorias = item.get("categorias") or []
-            categoria = None
-            if categorias:
-                cat_id = categorias[0].get("id")
-                categoria = Categoria.objects.filter(id_conta_azul=cat_id).first()
-                if not categoria:
-                    logger.warning(
-                        f"Categoria id_conta_azul={cat_id} não encontrada "
-                        f"para conta a pagar {id_ca}."
-                    )
+        if id_ca not in existentes:
+            para_criar.append(ContaAPagar(id_conta_azul=id_ca, **defaults))
+        else:
+            ids_atualizar.append(id_ca)
+            dados_atualizar[id_ca] = defaults
 
-            # ── Resolve FK: Centro de Custo ───────────────────────────────
-            centros = item.get("centros_de_custo") or []
-            centro_de_custo = None
-            if centros:
-                cc_id = centros[0].get("id")
-                centro_de_custo = CentroCusto.objects.filter(id_conta_azul=cc_id).first()
-                if not centro_de_custo:
-                    logger.warning(
-                        f"CentroCusto id_conta_azul={cc_id} não encontrado "
-                        f"para conta a pagar {id_ca}."
-                    )
+    # ── 4. bulk_create — insere tudo de uma vez ────────────────────────────────
+    criados = 0
+    BATCH = 500
+    for i in range(0, len(para_criar), BATCH):
+        lote = para_criar[i:i + BATCH]
+        ContaAPagar.objects.bulk_create(lote, ignore_conflicts=True)
+        criados += len(lote)
 
-            ContaAPagar.objects.create(
-                id_conta_azul=id_ca,
-                descricao=item.get("descricao", ""),
-                total=item.get("total", 0),
-                data_vencimento=_parse_date(item.get("data_vencimento")),
-                data_competencia=_parse_date(item.get("data_competencia")),
-                data_criacao=_parse_date(item.get("data_criacao")),
-                data_alteracao=_parse_date(item.get("data_alteracao")),
-                status=item.get("status", ""),
-                status_traduzido=item.get("status_traduzido", ""),
-                pago=item.get("pago", 0),
-                nao_pago=item.get("nao_pago", 0),
-                pessoa_id=pessoa,
-                categoria_id=categoria,
-                centro_custo_id=centro_de_custo,
-            )
-            criados += 1
+    # ── 5. bulk_update — atualiza existentes em lote ──────────────────────────
+    atualizados = 0
+    if ids_atualizar:
+        objs_para_atualizar = []
+        campos = list(next(iter(dados_atualizar.values())).keys())
 
-        except Exception as e:
-            logger.error(f"Erro ao salvar conta a pagar {id_ca}: {e}")
-            erros += 1
+        for obj in ContaAPagar.objects.filter(id_conta_azul__in=ids_atualizar):
+            d = dados_atualizar[obj.id_conta_azul]
+            for campo, valor in d.items():
+                setattr(obj, campo, valor)
+            objs_para_atualizar.append(obj)
 
-    logger.info(f"[ContaAPagar] criados={criados} ignorados={ignorados} erros={erros}")
-    return _resultado(criados, ignorados, erros)
+        for i in range(0, len(objs_para_atualizar), BATCH):
+            ContaAPagar.objects.bulk_update(objs_para_atualizar[i:i + BATCH], campos)
+            atualizados += len(objs_para_atualizar[i:i + BATCH])
+
+    logger.info(f"[ContaAPagar] criados={criados} atualizados={atualizados} erros={erros}")
+    return {"criados": criados, "atualizados": atualizados, "erros": erros}

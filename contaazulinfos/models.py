@@ -29,7 +29,7 @@ class Pessoa(models.Model):
     ativo = models.BooleanField(default=True)
     perfil = models.CharField(max_length=20, choices=PERFIL_CHOICES)
     tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
-    documento = models.CharField(max_length=14, blank=True, null=True)
+    documento = models.CharField(max_length=20, blank=True, null=True)
 
     def __str__(self):
         return self.nome

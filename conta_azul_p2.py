@@ -52,6 +52,6 @@ client_id_prod = 'mqtj80lnr02olc4m9be48jo9g'
 client_secret_prod = '1hkcaftg0fvlud38tb9biqtpful9sdbuhj4h6jttbf65efmk184g'
 redirect_uri_prod = 'https://www.FiscalCarvalhoEGuerra.pythonanywhere.com'
 
-code = 'c76bb52f-5ca8-4632-91dd-c42d28bbe800' #Code vem na URL de retorno
+code = 'ff699b29-8b6e-4d96-a061-4afcde4aa118' #Code vem na URL de retorno
 get_acess_token(client_id_prod,client_secret_prod,redirect_uri_prod,code)
 

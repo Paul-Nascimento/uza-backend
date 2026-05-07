@@ -194,68 +194,91 @@ def _extract_report_fields(report_raw) -> dict:
 
 
 def sync_expenses(token: str, date_from: str, date_to: str) -> dict:
-    """
-    Fetch expenses for a date range and upsert into the DB.
-    date_from / date_to: 'YYYY-MM-DD'
-    """
     resp = requests.get(
         f"{VEXPENSES_BASE_URL}/expenses",
         headers=_headers(token),
         params={
-            "include": "user,report,payment_method,apportionment",
-            "search": f"date:{date_from},{date_to}",
+            "include":      "user,report,payment_method,apportionment",
+            "search":       f"date:{date_from},{date_to}",
             "searchFields": "date:between",
-            "searchJoin": "and",
+            "searchJoin":   "and",
         },
     )
     resp.raise_for_status()
     items = resp.json().get("data", [])
 
-    created = updated = 0
+    # ── Lookups em memória — zero queries dentro do loop ──────────────────────
+    members_map = {m.id: m for m in TeamMember.objects.all()}
+    existentes  = set(Expense.objects.values_list("id", flat=True))
+
+    para_criar     = []
+    para_atualizar = []  # lista de (id, defaults)
+
     for item in items:
-        report_fields = _extract_report_fields(item.get("report"))
+        report_fields        = _extract_report_fields(item.get("report"))
         apportionment_fields = _extract_apportionment_fields(item.get("apportionment"))
 
-        user_id = _safe_int(item.get("user_id"))
-        user_obj = TeamMember.objects.filter(id=user_id).first() if user_id else None
+        user_id  = _safe_int(item.get("user_id"))
 
-        _, is_new = Expense.objects.update_or_create(
-            id=item["id"],
-            defaults={
-                "user": user_obj,
-                "expense_id": _safe_int(item.get("expense_id")),
-                "device_id": _safe_int(item.get("device_id")),
-                "integration_id": str(item["integration_id"]) if item.get("integration_id") else None,
-                "external_id": str(item["external_id"]) if item.get("external_id") else None,
-                "mileage": item.get("mileage"),
-                "date": _parse_date(item.get("date")),
-                "expense_type_id": _safe_int(item.get("expense_type_id")),
-                "payment_method_id": _safe_int(item.get("payment_method_id")),
-                "paying_company_id": _safe_int(item.get("paying_company_id")),
-                "course_id": _safe_int(item.get("course_id")),
-                "receipt_url": item.get("reicept_url") or None,
-                "value": item.get("value"),
-                "title": item.get("title") or None,
-                "validate": item.get("validate") or None,
-                "reimbursable": item.get("reimbursable", False),
-                "observation": item.get("observation") or None,
-                "rejected": bool(item.get("rejected", 0)),
-                "on": item.get("on", True),
-                "mileage_value": item.get("mileage_value"),
-                "original_currency_iso": item.get("original_currency_iso") or None,
-                "exchange_rate": item.get("exchange_rate"),
-                "converted_value": item.get("converted_value"),
-                "converted_currency_iso": item.get("converted_currency_iso") or None,
-                "created_at": _parse_date(item.get("created_at")),
-                "updated_at": _parse_date(item.get("updated_at")),
-                **report_fields,
-                **apportionment_fields,
-            },
-        )
-        if is_new:
-            created += 1
+        defaults = {
+            "user":                   members_map.get(user_id),
+            "expense_id":             _safe_int(item.get("expense_id")),
+            "device_id":              _safe_int(item.get("device_id")),
+            "integration_id":         str(item["integration_id"]) if item.get("integration_id") else None,
+            "external_id":            str(item["external_id"]) if item.get("external_id") else None,
+            "mileage":                item.get("mileage"),
+            "date":                   _parse_date(item.get("date")),
+            "expense_type_id":        _safe_int(item.get("expense_type_id")),
+            "payment_method_id":      _safe_int(item.get("payment_method_id")),
+            "paying_company_id":      _safe_int(item.get("paying_company_id")),
+            "course_id":              _safe_int(item.get("course_id")),
+            "receipt_url":            item.get("reicept_url") or None,
+            "value":                  item.get("value"),
+            "title":                  item.get("title") or None,
+            "validate":               item.get("validate") or None,
+            "reimbursable":           item.get("reimbursable", False),
+            "observation":            item.get("observation") or None,
+            "rejected":               bool(item.get("rejected", 0)),
+            "on":                     item.get("on", True),
+            "mileage_value":          item.get("mileage_value"),
+            "original_currency_iso":  item.get("original_currency_iso") or None,
+            "exchange_rate":          item.get("exchange_rate"),
+            "converted_value":        item.get("converted_value"),
+            "converted_currency_iso": item.get("converted_currency_iso") or None,
+            "created_at":             _parse_date(item.get("created_at")),
+            "updated_at":             _parse_date(item.get("updated_at")),
+            **report_fields,
+            **apportionment_fields,
+        }
+
+        expense_id = item["id"]
+        if expense_id not in existentes:
+            para_criar.append(Expense(id=expense_id, **defaults))
         else:
-            updated += 1
+            para_atualizar.append((expense_id, defaults))
+
+    # ── bulk_create em lotes de 500 ───────────────────────────────────────────
+    BATCH = 500
+    created = 0
+    for i in range(0, len(para_criar), BATCH):
+        Expense.objects.bulk_create(para_criar[i:i + BATCH], ignore_conflicts=True)
+        created += len(para_criar[i:i + BATCH])
+
+    # ── bulk_update em lotes de 500 ───────────────────────────────────────────
+    updated = 0
+    if para_atualizar:
+        ids_map = {x[0]: x[1] for x in para_atualizar}
+        campos  = list(next(iter(ids_map.values())).keys())
+        objs    = []
+
+        for obj in Expense.objects.filter(id__in=ids_map.keys()):
+            for campo, valor in ids_map[obj.id].items():
+                setattr(obj, campo, valor)
+            objs.append(obj)
+
+        for i in range(0, len(objs), BATCH):
+            Expense.objects.bulk_update(objs[i:i + BATCH], campos)
+            updated += len(objs[i:i + BATCH])
 
     return {"created": created, "updated": updated, "total": len(items)}
 

@@ -3,6 +3,9 @@ Django settings for uza project.
 """
 
 from pathlib import Path
+import os
+import dj_database_url
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -56,6 +59,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',   # fallback React
     'http://127.0.0.1:5173',
     'http://127.0.0.1:3000',
+    'http://127.0.0.1:8000',
 ]
 
 # ── URLs ───────────────────────────────────────────────────────────────────────
@@ -80,12 +84,26 @@ TEMPLATES = [
 WSGI_APPLICATION = 'uza.wsgi.application'
 
 # ── Banco de dados ─────────────────────────────────────────────────────────────
-
+"""
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
+}
+"""
+
+WSGI_APPLICATION = "uza.wsgi.application"
+
+# ── Banco de dados — Neon (PostgreSQL) ────────────────────────────────────────
+DATABASES = {
+    "default": dj_database_url.config(
+        #default=os.environ["DATABASE_URL"],
+        default="postgresql://neondb_owner:npg_Aut3lsbJdy0L@ep-curly-king-aqbkka6u.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require",
+        conn_max_age=600,
+        conn_health_checks=True,
+        ssl_require=True,
+    )
 }
 
 # ── Validação de senha ─────────────────────────────────────────────────────────

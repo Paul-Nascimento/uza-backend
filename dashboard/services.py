@@ -59,6 +59,7 @@ def _vg_kpis(date_from: date, date_to: date) -> dict:
     total_vex = _f(vex_aprov.aggregate(v=Sum("value"))["v"])
     nao_aprov = _f(vex_nao_aprov.aggregate(v=Sum("value"))["v"])
 
+
     return {
         "despesas_agregadas":    total_ca + total_vex,
         "despesas_conta_azul":   total_ca,
@@ -121,11 +122,13 @@ def _vg_evolucao(date_from: date, date_to: date) -> list:
         return resultado
 
 
-def _vg_top_categorias(date_from: date, date_to: date) -> list:
-    qs = (ContaAPagar.objects.filter(data_vencimento__gte=date_from, data_vencimento__lte=date_to,
-                                      categoria_id__isnull=False)
+def _vg_top_categorias(date_from: date, date_to: date, categoria_id: int = None, centro_custo_id: int = None) -> list:
+    qs = ContaAPagar.objects.filter(data_vencimento__gte=date_from, data_vencimento__lte=date_to,
+                                     categoria_id__isnull=False)\
           .exclude(categoria_id__nome="Remessas Campo")
-          .values("categoria_id__nome").annotate(v=Sum("pago")).order_by("-v")[:10])
+    if categoria_id:    qs = qs.filter(categoria_id=categoria_id)
+    if centro_custo_id: qs = qs.filter(centro_custo_id=centro_custo_id)
+    qs = qs.values("categoria_id__nome").annotate(v=Sum("pago")).order_by("-v")[:10]
     totais = {r["categoria_id__nome"]: _f(r["v"]) for r in qs}
 
     vex = Expense.objects.filter(date__date__gte=date_from, date__date__lte=date_to,
@@ -138,11 +141,13 @@ def _vg_top_categorias(date_from: date, date_to: date) -> list:
             for i, (n, v) in enumerate(ordenado)]
 
 
-def _vg_top_projetos(date_from: date, date_to: date) -> list:
-    qs_ca = (ContaAPagar.objects.filter(data_vencimento__gte=date_from, data_vencimento__lte=date_to,
-                                         centro_custo_id__isnull=False)
+def _vg_top_projetos(date_from: date, date_to: date, categoria_id: int = None, centro_custo_id: int = None) -> list:
+    qs_ca = ContaAPagar.objects.filter(data_vencimento__gte=date_from, data_vencimento__lte=date_to,
+                                        centro_custo_id__isnull=False)\
              .exclude(categoria_id__nome="Remessas Campo")
-             .values("centro_custo_id__nome").annotate(v=Sum("pago")))
+    if categoria_id:    qs_ca = qs_ca.filter(categoria_id=categoria_id)
+    if centro_custo_id: qs_ca = qs_ca.filter(centro_custo_id=centro_custo_id)
+    qs_ca = qs_ca.values("centro_custo_id__nome").annotate(v=Sum("pago"))
     totais = {r["centro_custo_id__nome"]: _f(r["v"]) for r in qs_ca}
 
     centros = set(CentroCusto.objects.values_list("nome", flat=True))
@@ -163,12 +168,12 @@ def _vg_top_projetos(date_from: date, date_to: date) -> list:
     return [{"name": n, "value": v} for n, v in ordenado]
 
 
-def get_visao_geral(date_from: date, date_to: date) -> dict:
+def get_visao_geral(date_from: date, date_to: date, categoria_id: int = None, centro_custo_id: int = None) -> dict:
     return {
         "kpis":            _vg_kpis(date_from, date_to),
         "evolucao":        _vg_evolucao(date_from, date_to),
-        "top5_categorias": _vg_top_categorias(date_from, date_to),
-        "top5_projetos":   _vg_top_projetos(date_from, date_to),
+        "top5_categorias": _vg_top_categorias(date_from, date_to, categoria_id, centro_custo_id),
+        "top5_projetos":   _vg_top_projetos(date_from, date_to, categoria_id, centro_custo_id),
     }
 
 
@@ -215,6 +220,8 @@ def get_colaboradores(date_from: date, date_to: date, funcionario_id: int = None
 
     maior = base.values("user_id","user__name").annotate(t=Sum("value")).order_by("-t").first()
 
+    nao_aprovado = _f(base.exclude(report_status="APROVADO").aggregate(v=Sum("value"))["v"])
+
     # Ranking
     qs_rank = (base.values("user_id","user__name","report_status").annotate(v=Sum("value")).order_by("user__name"))
     cols: dict = {}
@@ -237,6 +244,7 @@ def get_colaboradores(date_from: date, date_to: date, funcionario_id: int = None
             "media_por_pessoa":  _f(media),
             "maior_gasto_nome":  maior["user__name"] if maior else "-",
             "maior_gasto_valor": _f(maior["t"]) if maior else 0.0,
+            "total_nao_aprovado": nao_aprovado,
         },
         "ranking": ranking,
         "heatmap": heatmap,

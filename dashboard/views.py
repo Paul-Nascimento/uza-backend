@@ -23,7 +23,12 @@ class VisaoGeralView(APIView):
     def get(self, request):
         try:
             df, dt = _dates(request)
-            return Response(get_visao_geral(df, dt))
+            cat = request.query_params.get("categoria_id")    or None
+            cc  = request.query_params.get("centro_custo_id") or None
+            return Response(get_visao_geral(df, dt,
+                int(cat) if cat else None,
+                int(cc)  if cc  else None,
+            ))
         except ValueError as e:
             return Response({"error": str(e)}, status=drf_status.HTTP_400_BAD_REQUEST)
         except Exception as e:

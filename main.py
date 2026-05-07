@@ -55,7 +55,7 @@ def get_expenses(token):
         lambda r: r['data']['status'] if r and r.get('data') else None
     )
 
-    df.to_excel('expenses_vexpenses_v2.xlsx', index=False)
+    df.to_excel('expenses_vexpenses_v3.xlsx', index=False)
     
 def get_expenses_types(token):
     url = 'https://api.vexpenses.com/v2/expenses-type'
