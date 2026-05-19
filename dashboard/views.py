@@ -27,7 +27,7 @@ class VisaoGeralView(APIView):
             cc  = request.query_params.get("centro_custo_id") or None
             return Response(get_visao_geral(df, dt,
                 int(cat) if cat else None,
-                int(cc)  if cc  else None,
+                cc,  # string ("ca-<id>" | "vx-<nome>" | "indef") ou None
             ))
         except ValueError as e:
             return Response({"error": str(e)}, status=drf_status.HTTP_400_BAD_REQUEST)
@@ -45,7 +45,7 @@ class DespesasView(APIView):
             sta  = request.query_params.get("status")          or None
             return Response(get_despesas(df, dt,
                 int(cat) if cat else None,
-                int(cc)  if cc  else None,
+                cc,  # string ("ca-<id>" | "vx-<nome>" | "indef") ou None
                 int(pes) if pes else None,
                 sta))
         except ValueError as e:

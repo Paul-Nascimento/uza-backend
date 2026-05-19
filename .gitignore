@@ -3,3 +3,9 @@
 staticfiles/
 db.sqlite3
 testes
+conta_azul*
+expenses*
+exportar_dados.py
+conta_financeira.xlsx
+*.xlsx
+*.zip
