@@ -125,6 +125,12 @@ REST_FRAMEWORK = {
     ],
 }
 
+LOGGING = {
+    "version": 1,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {"django.db.backends": {"level": "DEBUG", "handlers": ["console"]}},
+}
+
 # ── Internacionalização ────────────────────────────────────────────────────────
 LANGUAGE_CODE = "pt-br"
 TIME_ZONE     = "America/Sao_Paulo"
